@@ -2,16 +2,23 @@ name: Uithoorn Checker (Weekly)
 
 on:
   schedule:
-    # 毎週金曜 07:30 UTC（夏：AMS 09:30、冬：AMS 08:30）
-    - cron: '30 7 * * 5'
+    - cron: '30 7 * * 5'  # 金曜 07:30 UTC
   workflow_dispatch: {}
 
 jobs:
   run-checker:
     runs-on: ubuntu-latest
+    env:
+      PYTHONUNBUFFERED: '1'     # ログを逐次出力
+      WDM_LOG: '1'              # webdriver-manager のログ
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Enable debug (runner)
+        run: |
+          echo "ACTIONS_RUNNER_DEBUG=true" >> $GITHUB_ENV
+          echo "ACTIONS_STEP_DEBUG=true" >> $GITHUB_ENV
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -23,27 +30,44 @@ jobs:
         with:
           chrome-version: stable
 
+      - name: Show env & versions
+        run: |
+          python -V
+          which python
+          google-chrome --version || true
+          which google-chrome || true
+          echo "PWD=$(pwd)"
+          ls -la
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip list
 
       - name: Run checker (headless)
         env:
           BASE_URL: https://avo.hta.nl/uithoorn/Accommodation/Book/106
           HEADLESS: 'true'
         run: |
+          set -e
           python uithoorn_checker.py
 
-      - name: Upload artifacts
+      # 失敗しても必ず成果物を上げる
+      - name: Upload debug artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: reports
+          name: debug-and-reports
           path: |
+            page_source.html
+            screenshot.png
             availability_report.csv
             whatsapp_message.txt
+          if-no-files-found: warn
 
       - name: Send result email
+        if: success()  # 成功したときだけメール送信
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: ${{ secrets.MAIL_HOST }}
