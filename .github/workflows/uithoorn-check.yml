@@ -1,0 +1,62 @@
+name: Uithoorn Checker (Weekly)
+
+on:
+  schedule:
+    # 毎週金曜 07:30 UTC（夏：AMS 09:30、冬：AMS 08:30）
+    - cron: '30 7 * * 5'
+  workflow_dispatch: {}
+
+jobs:
+  run-checker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Setup Chrome
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run checker (headless)
+        env:
+          BASE_URL: https://avo.hta.nl/uithoorn/Accommodation/Book/106
+          HEADLESS: 'true'
+        run: |
+          python uithoorn_checker.py
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports
+          path: |
+            availability_report.csv
+            whatsapp_message.txt
+
+      - name: Send result email
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.MAIL_HOST }}
+          server_port: ${{ secrets.MAIL_PORT }}
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: "Uithoorn 空枠チェック結果"
+          from: ${{ secrets.MAIL_FROM }}
+          to: ${{ secrets.MAIL_TO }}
+          body: |
+            週次レポートです（自動送信）。
+            ・whatsapp_message.txt をそのままグループに貼り付けできます。
+            ・availability_report.csv は詳細一覧です。
+          attachments: |
+            availability_report.csv
+            whatsapp_message.txt
