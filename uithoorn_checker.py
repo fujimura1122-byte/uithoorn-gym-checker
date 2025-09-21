@@ -89,9 +89,6 @@ def accept_cookies_if_present(driver):
 
 def build_driver(headless: bool) -> webdriver.Chrome:
     opts = Options()
-    chrome_bin = os.getenv("CHROME_BIN") or os.getenv("CHROME_PATH")
-    if chrome_bin:
-        opts.binary_location = chrome_bin
     if headless:
         opts.add_argument("--headless=new")
     opts.add_argument("--disable-gpu")
@@ -123,99 +120,94 @@ def login_if_needed(driver, username: str, password: str):
     except Exception:
         pass
 
-def select_duration(driver):
-    safe_click(driver, By.XPATH, "//label[contains(., 'Hoe lang wilt u reserveren?')]/following::*[self::select or self::button][1]")
-    try:
-        select = driver.find_element(By.XPATH, "//label[contains(., 'Hoe lang wilt u reserveren?')]/following::select[1]")
-        from selenium.webdriver.support.ui import Select
-        Select(select).select_by_visible_text(DURATION_TEXT)
-        return
-    except:
-        pass
-    try:
-        safe_click(driver, By.XPATH, f"//*[self::li or self::div or self::button][normalize-space()='{DURATION_TEXT}']")
-    except:
-        safe_click(driver, By.XPATH, f"//*[contains(normalize-space(), '{DURATION_TEXT}')]")
+# --- Page-specific helpers (from HTML structure) ---
 
-def open_facility(driver):
+def open_datepicker(driver):
+    """Open the jQuery UI datepicker popup by clicking the calendar icon."""
+    # id="calDiv" opens the popup; input has id="datepicker"
     try:
-        safe_click(driver, By.XPATH, f"//*[contains(., '{FACILITY_TEXT}') and (self::a or self::button or self::div)]")
-        time.sleep(1)
+        safe_click(driver, By.ID, "calDiv", 10)
     except Exception:
-        pass
+        safe_click(driver, By.ID, "datepicker", 10)
+    # wait for popup
+    safe_find(driver, By.ID, "ui-datepicker-div", 10)
+
+
+def select_duration(driver):
+    """Select "1,5 uur" from the duration <select id='selectedTimeLength'>."""
+    from selenium.webdriver.support.ui import Select
+    sel = safe_find(driver, By.ID, "selectedTimeLength", 10)
+    Select(sel).select_by_visible_text(DURATION_TEXT)
+    time.sleep(0.3)
+
 
 def go_to_month(driver, target: dt.date):
-    def month_key(text: str) -> Tuple[int, int]:
-        text = text.strip().lower()
-        months = {
-            'januari':1, 'februari':2, 'maart':3, 'april':4, 'mei':5, 'juni':6,
-            'juli':7, 'augustus':8, 'september':9, 'oktober':10, 'november':11, 'december':12
-        }
-        for name, idx in months.items():
-            if name in text:
-                import re
-                m = re.search(r"(20\d{2})", text)
-                year = int(m.group(1)) if m else dt.date.today().year
-                return idx, year
-        import re
-        m = re.search(r"(\d{1,2})[\-/ ](\d{4})", text)
-        if m:
-            return int(m.group(1)), int(m.group(2))
-        return -1, -1
+    """Navigate the jQuery UI datepicker popup to target month/year."""
+    open_datepicker(driver)
+    title = safe_find(driver, By.XPATH, "//div[@id='ui-datepicker-div']//div[contains(@class,'ui-datepicker-title')]", 10)
 
-    header = safe_find(driver, By.XPATH, "//*[self::h2 or self::div][contains(@class,'calendar') or contains(@class,'month')][1]", 10)
-    next_btn = driver.find_elements(By.XPATH, "//button[contains(@aria-label,'Next') or contains(@aria-label,'Volgende') or contains(.,'>') or contains(.,'›')]")
-    target_key = (target.month, target.year)
+    def current_year_month():
+        # Use the dropdowns inside the title
+        month_sel = driver.find_element(By.XPATH, "//div[@id='ui-datepicker-div']//select[contains(@class,'ui-datepicker-month')]")
+        year_sel = driver.find_element(By.XPATH, "//div[@id='ui-datepicker-div']//select[contains(@class,'ui-datepicker-year')]")
+        return int(month_sel.get_attribute("value")) + 1, int(year_sel.get_attribute("value"))
 
-    for _ in range(12):
-        label_text = header.text
-        cur_key = month_key(label_text)
-        if cur_key == target_key:
+    # Try up to 24 steps (2 years)
+    for _ in range(24):
+        cur_m, cur_y = current_year_month()
+        if cur_m == target.month and cur_y == target.year:
             return
-        if next_btn:
-            next_btn[0].click()
-            time.sleep(0.5)
-        else:
-            safe_click(driver, By.XPATH, "//*[self::button or self::a][contains(.,'Volgende') or contains(.,'Next') or contains(.,'›') or contains(.,'>')]")
-            time.sleep(0.5)
+        # click next arrow
+        safe_click(driver, By.XPATH, "//a[contains(@class,'ui-datepicker-next')]", 10)
+        time.sleep(0.2)
+
 
 def pick_date(driver, date_obj: dt.date):
-    day_str = str(date_obj.day)
-    candidates = driver.find_elements(By.XPATH, f"//td[not(contains(@class,'disabled')) and .//*[normalize-space()='{day_str}']] | //*[self::button or self::a][normalize-space()='{day_str}']")
-    if not candidates:
-        candidates = driver.find_elements(By.XPATH, f"//*[normalize-space()='{day_str}']")
-    if candidates:
-        candidates[0].click()
-        time.sleep(0.5)
-    else:
-        raise RuntimeError(f"Could not click date {date_obj}")
+    """Click day link in jQuery UI datepicker popup."""
+    open_datepicker(driver)
+    day = str(date_obj.day)
+    # Click the day link (inside #ui-datepicker-div)
+    link = safe_find(driver, By.XPATH, f"//div[@id='ui-datepicker-div']//a[normalize-space()='{day}']", 10)
+    link.click()
+    time.sleep(0.4)
+
+
+def open_facility(driver):
+    # Not needed on this page; keep for compatibility
+    pass
+
 
 def read_available_times(driver) -> List[Tuple[str, str]]:
-    container = safe_find(driver, By.XPATH, "//*[contains(.,'Welke tijd')]/following::*[self::div or self::ul][1]", 10)
-    items = container.find_elements(By.XPATH, ".//*[contains(text(),':') and (contains(text(),'–') or contains(text(),'-'))]")
+    """Read options from <select id='customSelectedTimeSlot'> that look like "HH:MM - HH:MM"."""
+    sel = safe_find(driver, By.ID, "customSelectedTimeSlot", 10)
+    options = sel.find_elements(By.TAG_NAME, "option")
     results = []
-    for el in items:
-        txt = el.text.strip().replace('\u2013', '-').replace('–', '-').replace('—','-')
-        if '-' in txt:
+    for op in options:
+        txt = op.text.strip().replace('–', '-').replace('–', '-').replace('—','-')
+        if ' - ' in txt and 'Geen tijden' not in txt:
             parts = [p.strip() for p in txt.split('-')]
             if len(parts) == 2:
                 results.append((parts[0], parts[1]))
     return sorted(list(set(results)))
 
+
 def match_targets(available: List[Tuple[str, str]], targets: List[Tuple[str, str]]):
     avail_set = {(a[0], a[1]) for a in available}
     return [(s, e) for (s, e) in targets if (s, e) in avail_set]
 
+
 def compose_whatsapp_message(hits: List[Slot]) -> str:
     if not hits:
-        return "今のところ2週間後の対象枠に空きはありません。\nまた後で確認します。"
+        return "今のところ2週間後の対象枠に空きはありません。
+また後で確認します。"
     lines = ["【空き枠（2週間後）】"]
     wd_ja = ["月","火","水","木","金","土","日"]
     for slot in sorted(hits, key=lambda s: (s.date, s.start)):
         w = wd_ja[slot.date.weekday()]
         lines.append(f"{slot.date:%m/%d}（{w}） {slot.start}-{slot.end}")
     lines.append("参加できる方は返信ください！")
-    return "\n".join(lines)
+    return "
+".join(lines)
 
 # ----------------------- Main -----------------------
 
@@ -237,7 +229,6 @@ def main():
 
         accept_cookies_if_present(driver)
         login_if_needed(driver, username, password)
-        open_facility(driver)
         select_duration(driver)
 
         target_dates = get_target_dates_two_weeks_ahead()
@@ -269,7 +260,11 @@ def main():
         log(f"Done. Matches: {len(all_hits)}")
         log(f"Saved CSV -> {report_csv}")
         log(f"Saved WhatsApp text -> {msg_txt}")
-        print("\n====== WhatsAppに貼り付け ======\n" + wa_msg + "\n===============================\n")
+        print("
+====== WhatsAppに貼り付け ======
+" + wa_msg + "
+===============================
+")
 
     finally:
         try:
