@@ -33,7 +33,6 @@ def check_availability():
         chrome_options.add_argument("--headless")
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
-        # 新しいオプションを追加して、ユーザーデータディレクトリの問題を解決
         chrome_options.add_argument("--disable-gpu")
         chrome_options.add_argument("--window-size=1920,1080")
         chrome_options.add_argument("--start-maximized")
@@ -61,7 +60,6 @@ def check_availability():
         now_nl = datetime.now(nl_timezone)
         future_date = now_nl + timedelta(weeks=2)
         target_day = future_date.day
-        # 月のインデックスを計算 (0から始まる)
         target_month_value = future_date.month - 1
 
         # 月を選択
@@ -86,17 +84,16 @@ def check_availability():
         
         # 確認したい曜日と時間帯の辞書
         schedule = {
-            'Monday': '20:00 - 21:30',
-            'Thursday': '20:00 - 21:30',
-            'Saturday': '17:00 - 18:30',
-            'Sunday': '15:30 - 17:00',
-            'Sunday_special': '14:00 - 15:30' # 日曜日が2つあるため、区別
+            'Monday': ['20:00 - 21:30'],
+            'Thursday': ['20:00 - 21:30'],
+            'Saturday': ['17:00 - 18:30'],
+            'Sunday': ['15:30 - 17:00', '14:00 - 15:30']
         }
         
         day_of_week_en = future_date.strftime("%A")
 
         if day_of_week_en in schedule:
-            required_time = schedule[day_of_week_en]
+            required_times = schedule[day_of_week_en]
             
             day_of_week_jp = ""
             if day_of_week_en == 'Monday': day_of_week_jp = "月曜日"
@@ -104,14 +101,16 @@ def check_availability():
             elif day_of_week_en == 'Saturday': day_of_week_jp = "土曜日"
             elif day_of_week_en == 'Sunday': day_of_week_jp = "日曜日"
             
-            if "Geen tijden beschikbaar" in available_times:
+            found_availability = False
+            for required_time in required_times:
+                if required_time in available_times:
+                    found_availability = True
+                    message = f"体育館に空きがあります！\n日付: {future_date.strftime('%Y年%m月%d日')}（{day_of_week_jp}）\n時間: {required_time}"
+                    print(message)
+                    send_discord_message(message)
+            
+            if not found_availability:
                 print(f"{future_date.strftime('%Y年%m月%d日')}（{day_of_week_jp}）の枠は空いていません。")
-            elif required_time in available_times:
-                message = f"体育館に空きがあります！\n日付: {future_date.strftime('%Y年%m月%d日')}（{day_of_week_jp}）\n時間: {required_time}"
-                print(message)
-                send_discord_message(message)
-            else:
-                print(f"{future_date.strftime('%Y年%m月%d日')}（{day_of_week_jp}）の {required_time} の枠は空いていません。")
         else:
             print(f"{future_date.strftime('%Y年%m月%d日')} は確認対象の曜日ではありません。")
             
