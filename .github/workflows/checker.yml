@@ -25,4 +25,4 @@ jobs:
           pip install selenium requests
 
       - name: Run the script
-        run: python gym_check.py
+        run: python uithoorn_checker.py
