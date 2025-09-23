@@ -2,11 +2,7 @@ name: Check Gym Court Availability
 
 on:
   schedule:
-    - cron: '0 18 * * 1' # Every Monday at 20:00 NL time (18:00 UTC)
-    - cron: '0 18 * * 4' # Every Thursday at 20:00 NL time (18:00 UTC)
-    - cron: '0 15 * * 6' # Every Saturday at 17:00 NL time (15:00 UTC)
-    - cron: '0 12 * * 0' # Every Sunday at 14:00 NL time (12:00 UTC)
-    - cron: '0 13 * * 0' # Every Sunday at 15:30 NL time (13:30 UTC)
+    - cron: '0 7 * * 5' # Every Friday at 9:00 AM NL time (7:00 AM UTC)
   workflow_dispatch:
 
 jobs:
