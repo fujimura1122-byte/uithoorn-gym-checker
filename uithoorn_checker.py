@@ -2,6 +2,7 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.options import Options
 import time
 from datetime import datetime, timedelta
 import requests
@@ -27,9 +28,18 @@ def send_discord_message(message):
 def check_availability():
     driver = None  # driver変数をNoneで初期化
     try:
-        # WebDriverのサービスを自動で管理する新方式
+        # ヘッドレスモードで実行するためのオプションを設定
+        chrome_options = Options()
+        chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
+        # 新しいオプションを追加して、ユーザーデータディレクトリの問題を解決
+        chrome_options.add_argument("--disable-gpu")
+        chrome_options.add_argument("--window-size=1920,1080")
+        chrome_options.add_argument("--start-maximized")
+        
         service = webdriver.chrome.service.Service()
-        driver = webdriver.Chrome(service=service)
+        driver = webdriver.Chrome(service=service, options=chrome_options)
         
         driver.get("https://avo.hta.nl/uithoorn/Accommodation/Book/106")
         
