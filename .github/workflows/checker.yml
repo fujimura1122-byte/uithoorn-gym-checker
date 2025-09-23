@@ -1,0 +1,28 @@
+name: Check Gym Court Availability
+
+on:
+  schedule:
+    - cron: '0 7 * * 1,4' # Every Monday and Thursday at 7:00 AM
+    - cron: '0 15 * * 6,0' # Every Saturday and Sunday at 3:00 PM
+  workflow_dispatch:
+
+jobs:
+  check-availability:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install selenium requests
+
+      - name: Run the script
+        run: python gym_check.py
