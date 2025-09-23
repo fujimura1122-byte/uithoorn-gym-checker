@@ -10,8 +10,8 @@ import json
 import pytz
 
 # DiscordのWebhook URLを設定
-# 以下の部分を、あなたが取得したDiscordのWebhook URLに置き換えてください。
-WEBHOOK_URL = "ここにDiscordのWebhook URLを貼り付け"
+# **必ず、あなたが取得した実際のWebhook URLに置き換えてください。**
+WEBHOOK_URL = "ここにあなたのDiscord Webhook URLを貼り付けてください"
 
 def send_discord_message(message):
     data = {
@@ -64,7 +64,7 @@ def check_availability():
         # 2週間後の月、木、土、日の日付を計算
         future_dates_to_check = []
         for day in [0, 1, 4, 6]:
-            date_to_check = today_nl + timedelta(weeks=2) + timedelta(days=(day - today_nl.isoweekday()) % 7)
+            date_to_check = today_nl + timedelta(weeks=2) + timedelta(days=(day - today_nl.weekday()))
             future_dates_to_check.append(date_to_check)
         
         for future_date in future_dates_to_check:
@@ -86,7 +86,7 @@ def check_availability():
                 EC.element_to_be_clickable((By.XPATH, f"//a[text()='{future_date.day}']"))
             ).click()
 
-            # 時間の選択肢を取得 (ここで要素を再度特定)
+            # ここで時間帯のドロップダウンを再取得することでstale elementエラーを回避
             time_dropdown = WebDriverWait(driver, 20).until(
                 EC.element_to_be_clickable((By.ID, "customSelectedTimeSlot"))
             )
@@ -102,7 +102,7 @@ def check_availability():
             elif day_of_week_en == 'Thursday': day_of_week_jp = "木曜日"
             elif day_of_week_en == 'Saturday': day_of_week_jp = "土曜日"
             elif day_of_week_en == 'Sunday': day_of_week_jp = "日曜日"
-
+            
             found_availability = False
             for required_time in required_times:
                 if required_time in available_times:
