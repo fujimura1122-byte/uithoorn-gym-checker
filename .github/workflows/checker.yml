@@ -13,15 +13,27 @@ jobs:
         with:
           python-version: "3.11"
 
-      # ★ Chromeをインストール（必須）
+      # ★ Chrome をインストール（必須）
       - uses: browser-actions/setup-chrome@v1
         with:
           chrome-version: stable
 
+      # ★ ChromeDriver もインストール（必須）
+      - uses: browser-actions/setup-chromedriver@v1
+        with:
+          chromedriver-version: latest
+
+      - name: Show browser paths (debug)
+        run: |
+          which google-chrome || true
+          which chromedriver || true
+          google-chrome --version || true
+          chromedriver --version || true
+
       - name: Install deps
         run: |
           pip install -U pip
-          pip install selenium webdriver-manager requests pytz
+          pip install selenium requests pytz
 
       - name: Run checker
         env:
