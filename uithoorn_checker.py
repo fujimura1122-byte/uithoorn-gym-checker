@@ -87,7 +87,7 @@ def check_availability():
                 EC.element_to_be_clickable((By.XPATH, f"//a[text()='{future_date.day}']"))
             ).click()
 
-            # 時間帯のドロップダウンメニューが完全に表示されるまで待機
+            # ここで時間帯のドロップダウンメニューが完全に表示されるまで待機
             time_dropdown = WebDriverWait(driver, 20).until(
                 EC.element_to_be_clickable((By.ID, "customSelectedTimeSlot"))
             )
