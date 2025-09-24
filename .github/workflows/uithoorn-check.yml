@@ -9,9 +9,24 @@ import requests
 import json
 import pytz
 
-# DiscordのWebhook URLを設定
-# 以下の部分を、あなたが取得したDiscordのWebhook URLに置き換えてください。
-WEBHOOK_URL = "ここにDiscordのWebhook URLを貼り付け"
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deps
+        run: |
+          pip install -U pip
+          pip install selenium webdriver-manager requests pytz
+      - name: Run checker
+        env:                # ← Secrets を渡す設定
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          python uithoorn_checker.py
+
 
 def send_discord_message(message):
     data = {
