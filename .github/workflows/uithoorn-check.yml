@@ -1,0 +1,33 @@
+name: Uithoorn Gym Checker
+
+on:
+  schedule:
+    - cron: '0 18 * * 1' # Monday 20:00 NL Time (18:00 UTC)
+    - cron: '0 18 * * 4' # Thursday 20:00 NL Time (18:00 UTC)
+    - cron: '0 15 * * 6' # Saturday 17:00 NL Time (15:00 UTC)
+    - cron: '0 12 * * 0' # Sunday 14:00 NL Time (12:00 UTC)
+    - cron: '0 13 * * 0' # Sunday 15:30 NL Time (13:30 UTC)
+  workflow_dispatch:
+
+jobs:
+  check-availability:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install selenium webdriver-manager requests pytz
+
+      - name: Run checker
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: python uithoorn_checker.py
