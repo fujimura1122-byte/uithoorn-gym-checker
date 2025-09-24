@@ -1,7 +1,7 @@
 name: Uithoorn Checker
 on:
   schedule:
-    - cron: "0 7 * * 5"  # UTCで金曜07:00（NL夏時間なら09:00相当）
+    - cron: "0 7 * * 5"   # 毎週金曜 07:00 UTC
   workflow_dispatch: {}
 
 jobs:
@@ -12,12 +12,19 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
+      # ★ Chromeをインストール（必須）
+      - uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+
       - name: Install deps
         run: |
           pip install -U pip
           pip install selenium webdriver-manager requests pytz
+
       - name: Run checker
-        env:                              # ← Secrets を渡す
+        env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
           python uithoorn_checker.py
