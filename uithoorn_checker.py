@@ -92,10 +92,8 @@ def check_availability():
                 EC.element_to_be_clickable((By.ID, "customSelectedTimeSlot"))
             )
             time_options = time_dropdown.find_elements(By.TAG_NAME, "option")
-            
-            # 正規表現を使って、時間帯の文字列から数字とハイフンだけを抽出
-            available_times = [re.sub(r'[^0-9-]', '', option.text.strip()) for option in time_options]
-            
+            available_times = [option.text.strip().replace(" ", "") for option in time_options]
+
             # 空き状況を確認
             day_of_week_en = future_date.strftime("%A")
             required_times = schedule.get(day_of_week_en, [])
@@ -109,10 +107,7 @@ def check_availability():
             found_availability = False
             
             for required_time in required_times:
-                # 比較する時間帯も同様に加工
-                required_time_cleaned = re.sub(r'[^0-9-]', '', required_time)
-                
-                if required_time_cleaned in available_times:
+                if required_time.replace(" ", "") in available_times:
                     found_availability = True
                     message = f"体育館に空きがあります！\n日付: {future_date.strftime('%Y年%m月%d日')}（{day_of_week_jp}）\n時間: {required_time}"
                     print(message)
