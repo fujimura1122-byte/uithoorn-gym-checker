@@ -52,11 +52,10 @@ def check_availability():
 
         # 確認したい曜日と時間帯の辞書
         schedule = {
-            'Monday': '20:00 - 21:30',
-            'Thursday': '20:00 - 21:30',
-            'Saturday': '17:00 - 18:30',
-            'Sunday': '15:30 - 17:00',
-            'Sunday_special': '14:00 - 15:30'
+            'Monday': ['20:00 - 21:30'],
+            'Thursday': ['20:00 - 21:30'],
+            'Saturday': ['17:00 - 18:30'],
+            'Sunday': ['15:30 - 17:00', '14:00 - 15:30']
         }
 
         # NL時間で現在の日付を取得
@@ -93,10 +92,11 @@ def check_availability():
                 EC.element_to_be_clickable((By.ID, "customSelectedTimeSlot"))
             )
             time_options = time_dropdown.find_elements(By.TAG_NAME, "option")
-            
-            # 曜日ごとの時間帯をチェックする
+            available_times = [option.text.strip().replace(" ", "") for option in time_options]
+
+            # 空き状況を確認
             day_of_week_en = future_date.strftime("%A")
-            required_time = schedule.get(day_of_week_en, '')
+            required_times = schedule.get(day_of_week_en, [])
 
             day_of_week_jp = ""
             if day_of_week_en == 'Monday': day_of_week_jp = "月曜日"
@@ -106,14 +106,12 @@ def check_availability():
             
             found_availability = False
             
-            # 時間帯を一つずつチェック
-            for option in time_options:
-                if required_time in option.text:
+            for required_time in required_times:
+                if required_time.replace(" ", "") in available_times:
                     found_availability = True
                     message = f"体育館に空きがあります！\n日付: {future_date.strftime('%Y年%m月%d日')}（{day_of_week_jp}）\n時間: {required_time}"
                     print(message)
                     send_discord_message(message)
-                    break # 空きが見つかったらループを抜ける
 
             if not found_availability:
                 print(f"{future_date.strftime('%Y年%m月%d日')}（{day_of_week_jp}）の枠は空いていません。")
