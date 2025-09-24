@@ -11,7 +11,7 @@ import pytz
 
 # DiscordのWebhook URLを設定
 # 以下の部分を、あなたが取得したDiscordのWebhook URLに置き換えてください。
-WEBHOOK_URL = "https://discord.com/api/webhooks/1420476314225344572/MItQXAd9c0w3_kRT6tbGUpZOJpmOX-eR1Mvddq_C3sAwKunDFKyUzRXsoaRpMmr5jG2X"
+WEBHOOK_URL = "ここにあなたのDiscord Webhook URLを貼り付けてください"
 
 def send_discord_message(message):
     data = {
@@ -36,7 +36,7 @@ def check_availability():
         chrome_options.add_argument("--disable-gpu")
         chrome_options.add_argument("--window-size=1920,1080")
         chrome_options.add_argument("--start-maximized")
-        
+
         service = webdriver.chrome.service.Service()
         driver = webdriver.Chrome(service=service, options=chrome_options)
         
@@ -86,7 +86,7 @@ def check_availability():
                 EC.element_to_be_clickable((By.XPATH, f"//a[text()='{future_date.day}']"))
             ).click()
 
-            # ここで時間帯のドロップダウンを再取得することでstale elementエラーを回避
+            # ここで時間帯のドロップダウンメニューが完全に表示されるまで待機
             time_dropdown = WebDriverWait(driver, 20).until(
                 EC.element_to_be_clickable((By.ID, "customSelectedTimeSlot"))
             )
