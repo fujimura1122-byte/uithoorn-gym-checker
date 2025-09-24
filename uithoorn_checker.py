@@ -10,7 +10,7 @@ import json
 import pytz
 
 # DiscordのWebhook URLを設定
-# 以下の部分を、あなたが取得したDiscordのWebhook URLに置き換えてください。
+# **必ず、あなたが取得した実際のWebhook URLに置き換えてください。**
 WEBHOOK_URL = "ここにあなたのDiscord Webhook URLを貼り付けてください"
 
 def send_discord_message(message):
@@ -63,7 +63,7 @@ def check_availability():
         
         # 2週間後の月、木、土、日の日付を計算
         future_dates_to_check = []
-        for day in [0, 1, 4, 6]:
+        for day in [1, 4, 6, 7]:
             date_to_check = today_nl + timedelta(weeks=2) + timedelta(days=(day - today_nl.isoweekday()) % 7)
             future_dates_to_check.append(date_to_check)
         
@@ -86,13 +86,6 @@ def check_availability():
                 EC.element_to_be_clickable((By.XPATH, f"//a[text()='{future_date.day}']"))
             ).click()
 
-            # ここで時間帯のドロップダウンメニューが完全に表示されるまで待機
-            time_dropdown = WebDriverWait(driver, 20).until(
-                EC.element_to_be_clickable((By.ID, "customSelectedTimeSlot"))
-            )
-            time_options = time_dropdown.find_elements(By.TAG_NAME, "option")
-            available_times = [option.text.strip().replace(" ", "") for option in time_options]
-
             # 空き状況を確認
             day_of_week_en = future_date.strftime("%A")
             required_times = schedule.get(day_of_week_en, [])
@@ -104,13 +97,22 @@ def check_availability():
             elif day_of_week_en == 'Sunday': day_of_week_jp = "日曜日"
             
             found_availability = False
+            
+            # 時間帯を一つずつチェックする
             for required_time in required_times:
-                if required_time in available_times:
+                # ここで時間帯のドロップダウンメニューを毎回再取得する
+                time_dropdown = WebDriverWait(driver, 20).until(
+                    EC.element_to_be_clickable((By.ID, "customSelectedTimeSlot"))
+                )
+                time_options = time_dropdown.find_elements(By.TAG_NAME, "option")
+                available_times = [option.text.strip().replace(" ", "") for option in time_options]
+                
+                if required_time.replace(" ", "") in available_times:
                     found_availability = True
                     message = f"体育館に空きがあります！\n日付: {future_date.strftime('%Y年%m月%d日')}（{day_of_week_jp}）\n時間: {required_time}"
                     print(message)
                     send_discord_message(message)
-            
+
             if not found_availability:
                 print(f"{future_date.strftime('%Y年%m月%d日')}（{day_of_week_jp}）の枠は空いていません。")
             
