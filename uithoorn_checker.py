@@ -10,7 +10,7 @@ import json
 import pytz
 
 # DiscordのWebhook URLを設定
-# **必ず、あなたが取得した実際のWebhook URLに置き換えてください。**
+# 以下の部分を、あなたが取得したDiscordのWebhook URLに置き換えてください。
 WEBHOOK_URL = "ここにあなたのDiscord Webhook URLを貼り付けてください"
 
 def send_discord_message(message):
