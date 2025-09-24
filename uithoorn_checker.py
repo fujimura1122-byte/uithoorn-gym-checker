@@ -10,7 +10,7 @@ import json
 import pytz
 
 # DiscordのWebhook URLを設定
-# 以下の部分を、あなたが取得したDiscordのWebhook URLに置き換えてください。
+# **必ず、あなたが取得した実際のWebhook URLに置き換えてください。**
 WEBHOOK_URL = "ここにあなたのDiscord Webhook URLを貼り付けてください"
 
 def send_discord_message(message):
@@ -63,8 +63,9 @@ def check_availability():
         
         # 2週間後の月、木、土、日の日付を計算
         future_dates_to_check = []
-        for day in [0, 1, 4, 6]:
-            date_to_check = today_nl + timedelta(weeks=2) + timedelta(days=(day - today_nl.weekday()))
+        # isoweekday()は月曜日を1、日曜日を7と返すため、[1, 4, 6, 7]に変更
+        for day in [1, 4, 6, 7]:
+            date_to_check = today_nl + timedelta(weeks=2) + timedelta(days=(day - today_nl.isoweekday()) % 7)
             future_dates_to_check.append(date_to_check)
         
         for future_date in future_dates_to_check:
@@ -91,7 +92,7 @@ def check_availability():
                 EC.element_to_be_clickable((By.ID, "customSelectedTimeSlot"))
             )
             time_options = time_dropdown.find_elements(By.TAG_NAME, "option")
-            available_times = [option.text.strip() for option in time_options]
+            available_times = [option.text.strip().replace(" ", "") for option in time_options]
 
             # 空き状況を確認
             day_of_week_en = future_date.strftime("%A")
