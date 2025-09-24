@@ -10,7 +10,7 @@ import json
 import pytz
 
 # DiscordのWebhook URLを設定
-# **必ず、あなたが取得した実際のWebhook URLに置き換えてください。**
+# 以下の部分を、あなたが取得したDiscordのWebhook URLに置き換えてください。
 WEBHOOK_URL = "ここにあなたのDiscord Webhook URLを貼り付けてください"
 
 def send_discord_message(message):
@@ -63,8 +63,7 @@ def check_availability():
         
         # 2週間後の月、木、土、日の日付を計算
         future_dates_to_check = []
-        # isoweekday()は月曜日を1、日曜日を7と返すため、[1, 4, 6, 7]に変更
-        for day in [1, 4, 6, 7]:
+        for day in [0, 1, 4, 6]:
             date_to_check = today_nl + timedelta(weeks=2) + timedelta(days=(day - today_nl.isoweekday()) % 7)
             future_dates_to_check.append(date_to_check)
         
