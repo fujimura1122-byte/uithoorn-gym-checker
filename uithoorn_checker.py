@@ -4,7 +4,7 @@ from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import TimeoutException, StaleElementReferenceException
 import time
 from datetime import datetime, timedelta
 import requests
@@ -29,9 +29,7 @@ def send_discord_message(message):
         print(f"Discord通知の送信中にエラーが発生しました: {e}")
 
 def normalize_timeslot(s: str) -> str:
-    # Unicode正規化で文字種の揺れを吸収
     s = unicodedata.normalize('NFKC', s)
-    # 半角/全角スペース、各種ダッシュ記号をハイフンに統一し、それ以外の空白も除去
     return re.sub(r'[\s–—-]+', '', s)
 
 def check_availability():
@@ -51,7 +49,6 @@ def check_availability():
         
         driver.get("https://avo.hta.nl/uithoorn/Accommodation/Book/106")
         
-        # クッキー同意バナーに対応
         try:
             cookie_accept_button = WebDriverWait(driver, 10).until(
                 EC.element_to_be_clickable((By.XPATH, '//button[contains(text(),"Accepteer")]'))
@@ -63,12 +60,12 @@ def check_availability():
         reservation_duration_dropdown = WebDriverWait(driver, 20).until(
             EC.element_to_be_clickable((By.ID, "selectedTimeLength"))
         )
-        select = Select(reservation_duration_dropdown)
+        select_len = Select(reservation_duration_dropdown)
         
         found_duration = False
-        for option in select.options:
+        for option in select_len.options:
             if "1,5 uur" in option.text:
-                select.select_by_value(option.get_attribute("value"))
+                select_len.select_by_value(option.get_attribute("value"))
                 found_duration = True
                 break
         if not found_duration:
@@ -81,69 +78,67 @@ def check_availability():
             'Sunday': ['15:30 - 17:00', '14:00 - 15:30']
         }
 
-        nl_timezone = pytz.timezone('Europe/Amsterdam')
-        today_nl = datetime.now(nl_timezone).date()
+        nl_tz = pytz.timezone('Europe/Amsterdam')
+        today_nl = datetime.now(nl_tz).date()
         
-        future_dates_to_check = []
-        for day in [1, 4, 6, 7]:
-            date_to_check = today_nl + timedelta(weeks=2) + timedelta(days=(day - today_nl.isoweekday()) % 7)
-            future_dates_to_check.append(date_to_check)
-        
-        for future_date in future_dates_to_check:
-            calendar_input = WebDriverWait(driver, 20).until(
-                EC.element_to_be_clickable((By.ID, "datepicker"))
-            )
-            calendar_input.click()
+        targets = []
+        for dow in [1, 4, 6, 7]:  # Mon=1, Thu=4, Sat=6, Sun=7
+            date_to_check = today_nl + timedelta(weeks=2) + timedelta(days=(dow - today_nl.isoweekday()) % 7)
+            targets.append(date_to_check)
 
-            month_dropdown = WebDriverWait(driver, 20).until(
-                EC.element_to_be_clickable((By.CLASS_NAME, "ui-datepicker-month"))
-            )
-            select_month = Select(month_dropdown)
-            select_month.select_by_value(str(future_date.month - 1))
-
-            year_dropdowns = driver.find_elements(By.CLASS_NAME, "ui-datepicker-year")
-            if year_dropdowns:
-                select_year = Select(year_dropdowns[0])
-                select_year.select_by_value(str(future_date.year))
-
-            day_xpath = f"//table[contains(@class,'ui-datepicker-calendar')]//td[not(contains(@class,'ui-datepicker-other-month'))]/a[text()='{future_date.day}']"
-            WebDriverWait(driver, 20).until(
-                EC.element_to_be_clickable((By.XPATH, day_xpath))
-            ).click()
-
+        for future_date in targets:
             try:
-                time_dropdown = WebDriverWait(driver, 20).until(
-                    EC.element_to_be_clickable((By.ID, "customSelectedTimeSlot"))
+                calendar_input = WebDriverWait(driver, 20).until(
+                    EC.element_to_be_clickable((By.ID, "datepicker"))
                 )
-                time_options = time_dropdown.find_elements(By.TAG_NAME, "option")
+                calendar_input.click()
+
+                month_dropdown = WebDriverWait(driver, 20).until(
+                    EC.element_to_be_clickable((By.CLASS_NAME, "ui-datepicker-month"))
+                )
+                select_month = Select(month_dropdown)
+                select_month.select_by_value(str(future_date.month - 1))
+
+                years = driver.find_elements(By.CLASS_NAME, "ui-datepicker-year")
+                if years:
+                    select_year = Select(years[0])
+                    select_year.select_by_value(str(future_date.year))
+
+                day_xpath = ("//table[contains(@class,'ui-datepicker-calendar')]"
+                             "//td[not(contains(@class,'ui-datepicker-other-month'))]"
+                             f"/a[text()='{future_date.day}']")
                 
+                WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, day_xpath))).click()
+
+                WebDriverWait(driver, 20).until(lambda d: d.find_element(By.ID, "customSelectedTimeSlot"))
+                
+                time_dropdown = driver.find_element(By.ID, "customSelectedTimeSlot")
+                time_options = time_dropdown.find_elements(By.TAG_NAME, "option")
                 available_times_cleaned = [normalize_timeslot(o.text) for o in time_options if o.get_attribute('value')]
 
-                day_of_week_en = future_date.strftime("%A")
-                required_times = schedule.get(day_of_week_en, [])
+                dow_en = future_date.strftime("%A")
+                req_times = schedule.get(dow_en, [])
+                JP = {"Monday":"月曜日","Thursday":"木曜日","Saturday":"土曜日","Sunday":"日曜日"}
+                dow_jp = JP.get(dow_en, "")
 
-                day_of_week_jp = ""
-                if day_of_week_en == 'Monday': day_of_week_jp = "月曜日"
-                elif day_of_week_en == 'Thursday': day_of_week_jp = "木曜日"
-                elif day_of_week_en == 'Saturday': day_of_week_jp = "土曜日"
-                elif day_of_week_en == 'Sunday': day_of_week_jp = "日曜日"
-                
-                found_availability = False
-                for required_time in required_times:
-                    required_time_cleaned = normalize_timeslot(required_time)
-                    if required_time_cleaned in available_times_cleaned:
-                        found_availability = True
-                        message = f"体育館に空きがあります！\n日付: {future_date.strftime('%Y年%m月%d日')}（{day_of_week_jp}）\n時間: {required_time}"
-                        print(message)
-                        send_discord_message(message)
+                found = False
+                for t in req_times:
+                    if normalize_timeslot(t) in available_times_cleaned:
+                        found = True
+                        msg = f"体育館に空きがあります！\n日付: {future_date.strftime('%Y年%m月%d日')}（{dow_jp}）\n時間: {t}"
+                        print(msg)
+                        send_discord_message(msg)
 
-                if not found_availability:
-                    print(f"{future_date.strftime('%Y年%m月%d日')}（{day_of_week_jp}）の枠は空いていません。")
-            
+                if not found:
+                    print(f"{future_date.strftime('%Y年%m月%d日')}（{dow_jp}）の枠は空いていません。")
+
             except TimeoutException:
-                print(f"時間スロットがロードされませんでした。{future_date.strftime('%Y年%m月%d日')}（{day_of_week_jp}）の枠は空いていません。")
+                print(f"時間スロットがロードされませんでした。{future_date.strftime('%Y年%m月%d日')}（{dow_jp}）の枠は空いていません。")
+            except StaleElementReferenceException:
+                print(f"スタックトレース: StaleElementReferenceException occurred on {future_date.strftime('%Y年%m月%d日')}（{dow_jp}）")
+                continue # StaleElementReferenceExceptionが発生した場合、次の日に進む
 
-            time.sleep(2) # 次の確認のために少し待機
+            time.sleep(2)
 
     except Exception as e:
         print(f"エラーが発生しました: {e}")
