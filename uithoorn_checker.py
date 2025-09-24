@@ -80,7 +80,7 @@ def check_availability():
                 EC.element_to_be_clickable((By.CLASS_NAME, "ui-datepicker-month"))
             )
             select_month = Select(month_dropdown)
-            select_by_value(str(future_date.month - 1))
+            select_month.select_by_value(str(future_date.month - 1))
 
             # 日付を選択
             WebDriverWait(driver, 20).until(
@@ -107,7 +107,7 @@ def check_availability():
             found_availability = False
             
             for required_time in required_times:
-                if required_time in available_times:
+                if required_time.replace(" ", "") in available_times:
                     found_availability = True
                     message = f"体育館に空きがあります！\n日付: {future_date.strftime('%Y年%m月%d日')}（{day_of_week_jp}）\n時間: {required_time}"
                     print(message)
