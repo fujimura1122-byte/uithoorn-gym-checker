@@ -48,18 +48,7 @@ def check_availability():
         service = webdriver.chrome.service.Service(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=chrome_options)
         
-        driver.get("https://avo.hta.nl/uithoorn/Accommodation/Book/106")
-        
-        # クッキー同意バナーに対応
-        try:
-            cookie_accept_button = WebDriverWait(driver, 10).until(
-                EC.element_to_be_clickable((By.XPATH, '//button[contains(text(),"Accepteer")]'))
-            )
-            cookie_accept_button.click()
-        except TimeoutException:
-            pass
-        
-        # ---- 1.5 uur を選択（テキストで安全に）----
+        # 予約時間（1.5 uur）を選択
         reservation_duration_dropdown = WebDriverWait(driver, 20).until(
             EC.element_to_be_clickable((By.ID, "selectedTimeLength"))
         )
@@ -91,6 +80,18 @@ def check_availability():
 
         for future_date in targets:
             try:
+                # ---- 各日のチェック前にページを再読み込み ----
+                driver.get("https://avo.hta.nl/uithoorn/Accommodation/Book/106")
+                
+                # クッキー同意バナーに対応
+                try:
+                    cookie_accept_button = WebDriverWait(driver, 10).until(
+                        EC.element_to_be_clickable((By.XPATH, '//button[contains(text(),"Accepteer")]'))
+                    )
+                    cookie_accept_button.click()
+                except TimeoutException:
+                    pass
+
                 # ---- カレンダーを開く ----
                 calendar_input = WebDriverWait(driver, 20).until(
                     EC.element_to_be_clickable((By.ID, "datepicker"))
