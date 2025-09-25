@@ -1,33 +1,30 @@
-name: Uithoorn Gym Checker
-
+name: Uithoorn Checker
 on:
   schedule:
-    - cron: '0 18 * * 1' # Monday 20:00 NL Time (18:00 UTC)
-    - cron: '0 18 * * 4' # Thursday 20:00 NL Time (18:00 UTC)
-    - cron: '0 15 * * 6' # Saturday 17:00 NL Time (15:00 UTC)
-    - cron: '0 12 * * 0' # Sunday 14:00 NL Time (12:00 UTC)
-    - cron: '0 13 * * 0' # Sunday 15:30 NL Time (13:30 UTC)
-  workflow_dispatch:
+    - cron: "0 7 * * 5"   # 毎週金曜 07:00 UTC（NL夏時間=09:00）
+  workflow_dispatch: {}
 
 jobs:
-  check-availability:
+  run:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-
-      - name: Set up Python
-        uses: actions/setup-python@v2
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: "3.11"
 
-      - name: Install dependencies
+      # Chrome 本体をインストール（Selenium Manager がドライバ解決）
+      - uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+
+      - name: Install deps
         run: |
-          python -m pip install --upgrade pip
-          pip install selenium webdriver-manager requests pytz
+          pip install -U pip
+          pip install selenium requests pytz
 
       - name: Run checker
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-        run: python uithoorn_checker.py
+        run: |
+          python uithoorn_checker.py
