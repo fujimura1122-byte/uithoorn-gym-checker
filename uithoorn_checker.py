@@ -14,7 +14,7 @@ import re
 import os
 import unicodedata
 
-# Discord Webhook URLを環境変数から取得
+# ---- Discord Webhook（Secrets から取得） ----
 WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL", "")
 
 def send_discord_message(message: str):
@@ -45,17 +45,28 @@ def check_availability():
         chrome_options.add_argument("--start-maximized")
         chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
-        service = webdriver.chrome.service.Service(ChromeDriverManager().install())
+        service = Service(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=chrome_options)
-        
-        # 予約時間（1.5 uur）を選択
+
+        driver.get("https://avo.hta.nl/uithoorn/Accommodation/Book/106")
+
+        # クッキー同意バナーに対応
+        try:
+            cookie_accept_button = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.XPATH, '//button[contains(text(),"Accepteer")]'))
+            )
+            cookie_accept_button.click()
+        except TimeoutException:
+            pass
+
+        # ---- 1.5 uur を選択（テキストで安全に）----
         reservation_duration_dropdown = WebDriverWait(driver, 20).until(
             EC.element_to_be_clickable((By.ID, "selectedTimeLength"))
         )
         select_len = Select(reservation_duration_dropdown)
         picked = False
         for opt in select_len.options:
-            if "1,5 uur" in opt.text:
+            if "1,5" in opt.text:
                 select_len.select_by_value(opt.get_attribute("value"))
                 picked = True
                 break
@@ -64,10 +75,10 @@ def check_availability():
 
         # ---- チェックしたい枠 ----
         schedule = {
-            'Monday': ['20:00 - 21:30'],
+            'Monday':  ['20:00 - 21:30'],
             'Thursday': ['20:00 - 21:30'],
             'Saturday': ['17:00 - 18:30'],
-            'Sunday': ['15:30 - 17:00', '14:00 - 15:30']
+            'Sunday':   ['15:30 - 17:00', '14:00 - 15:30']
         }
 
         # ---- NLの今日から 2週間後の対象曜日を算出 ----
@@ -80,18 +91,6 @@ def check_availability():
 
         for future_date in targets:
             try:
-                # ---- 各日のチェック前にページを再読み込み ----
-                driver.get("https://avo.hta.nl/uithoorn/Accommodation/Book/106")
-                
-                # クッキー同意バナーに対応
-                try:
-                    cookie_accept_button = WebDriverWait(driver, 10).until(
-                        EC.element_to_be_clickable((By.XPATH, '//button[contains(text(),"Accepteer")]'))
-                    )
-                    cookie_accept_button.click()
-                except TimeoutException:
-                    pass
-
                 # ---- カレンダーを開く ----
                 calendar_input = WebDriverWait(driver, 20).until(
                     EC.element_to_be_clickable((By.ID, "datepicker"))
@@ -112,19 +111,20 @@ def check_availability():
                              "//td[not(contains(@class,'ui-datepicker-other-month'))]"
                              f"/a[text()='{future_date.day}']")
                 
-                # 新しい時間スロットのプルダウンが出現するのを待機
+                old_select = driver.find_element(By.ID, "customSelectedTimeSlot")
                 WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, day_xpath))).click()
                 
-                # 時間スロットのドロップダウンメニューが完全にロードされるのを待機
-                time_dropdown = WebDriverWait(driver, 20).until(
+                # selectが差し替わるのを待つ
+                WebDriverWait(driver, 20).until(EC.staleness_of(old_select))
+                new_select = WebDriverWait(driver, 20).until(
                     EC.presence_of_element_located((By.ID, "customSelectedTimeSlot"))
                 )
                 WebDriverWait(driver, 20).until(
-                    lambda d: len(time_dropdown.find_elements(By.TAG_NAME, "option")) > 1
+                    lambda d: len(new_select.find_elements(By.TAG_NAME, "option")) > 1
                 )
 
                 # 利用可能な枠を正規化して取得
-                time_options = time_dropdown.find_elements(By.TAG_NAME, "option")
+                time_options = new_select.find_elements(By.TAG_NAME, "option")
                 available = [normalize_timeslot(o.text) for o in time_options if o.get_attribute('value')]
 
                 # 判定
@@ -148,7 +148,7 @@ def check_availability():
                 print(f"時間スロットがロードされませんでした。{future_date.strftime('%Y年%m月%d日')}（{dow_jp}）の枠は空いていません。")
             except StaleElementReferenceException:
                 print(f"スタックトレース: StaleElementReferenceException occurred on {future_date.strftime('%Y年%m月%d日')}（{dow_jp}）")
-                continue
+                continue # StaleElementReferenceExceptionが発生した場合、次の日に進む
 
             time.sleep(2)
 
