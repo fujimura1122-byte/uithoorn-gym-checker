@@ -13,8 +13,9 @@ import pytz
 import re
 import os
 import unicodedata
+import traceback
 
-# ---- Discord Webhook（Secrets から取得） ----
+# Discord Webhook URLを環境変数から取得
 WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL", "")
 
 def send_discord_message(message: str):
@@ -47,9 +48,9 @@ def check_availability():
 
         service = Service(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=chrome_options)
-
+        
         driver.get("https://avo.hta.nl/uithoorn/Accommodation/Book/106")
-
+        
         # クッキー同意バナーに対応
         try:
             cookie_accept_button = WebDriverWait(driver, 10).until(
@@ -58,7 +59,7 @@ def check_availability():
             cookie_accept_button.click()
         except TimeoutException:
             pass
-
+        
         # ---- 1.5 uur を選択（テキストで安全に）----
         reservation_duration_dropdown = WebDriverWait(driver, 20).until(
             EC.element_to_be_clickable((By.ID, "selectedTimeLength"))
@@ -66,7 +67,7 @@ def check_availability():
         select_len = Select(reservation_duration_dropdown)
         picked = False
         for opt in select_len.options:
-            if "1,5" in opt.text:
+            if "1,5 uur" in opt.text:
                 select_len.select_by_value(opt.get_attribute("value"))
                 picked = True
                 break
@@ -75,10 +76,10 @@ def check_availability():
 
         # ---- チェックしたい枠 ----
         schedule = {
-            'Monday':  ['20:00 - 21:30'],
+            'Monday': ['20:00 - 21:30'],
             'Thursday': ['20:00 - 21:30'],
             'Saturday': ['17:00 - 18:30'],
-            'Sunday':   ['15:30 - 17:00', '14:00 - 15:30']
+            'Sunday': ['15:30 - 17:00', '14:00 - 15:30']
         }
 
         # ---- NLの今日から 2週間後の対象曜日を算出 ----
@@ -90,71 +91,81 @@ def check_availability():
             targets.append(date_to_check)
 
         for future_date in targets:
-            try:
-                # ---- カレンダーを開く ----
-                calendar_input = WebDriverWait(driver, 20).until(
-                    EC.element_to_be_clickable((By.ID, "datepicker"))
-                )
-                calendar_input.click()
+            for attempt in range(3):
+                try:
+                    # ---- カレンダーを開く ----
+                    calendar_input = WebDriverWait(driver, 20).until(
+                        EC.element_to_be_clickable((By.ID, "datepicker"))
+                    )
+                    calendar_input.click()
 
-                # 年→月の順で指定（年またぎ対策）
-                years = driver.find_elements(By.CLASS_NAME, "ui-datepicker-year")
-                if years:
-                    Select(years[0]).select_by_value(str(future_date.year))
-                month_dropdown = WebDriverWait(driver, 20).until(
-                    EC.element_to_be_clickable((By.CLASS_NAME, "ui-datepicker-month"))
-                )
-                Select(month_dropdown).select_by_value(str(future_date.month - 1))
+                    # 年→月の順で指定（年またぎ対策）
+                    years = driver.find_elements(By.CLASS_NAME, "ui-datepicker-year")
+                    if years:
+                        Select(years[0]).select_by_value(str(future_date.year))
+                    month_dropdown = WebDriverWait(driver, 20).until(
+                        EC.element_to_be_clickable((By.CLASS_NAME, "ui-datepicker-month"))
+                    )
+                    Select(month_dropdown).select_by_value(str(future_date.month - 1))
 
-                # 当月セルのみをクリック
-                day_xpath = ("//table[contains(@class,'ui-datepicker-calendar')]"
-                             "//td[not(contains(@class,'ui-datepicker-other-month'))]"
-                             f"/a[text()='{future_date.day}']")
-                
-                old_select = driver.find_element(By.ID, "customSelectedTimeSlot")
-                WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, day_xpath))).click()
-                
-                # selectが差し替わるのを待つ
-                WebDriverWait(driver, 20).until(EC.staleness_of(old_select))
-                new_select = WebDriverWait(driver, 20).until(
-                    EC.presence_of_element_located((By.ID, "customSelectedTimeSlot"))
-                )
-                WebDriverWait(driver, 20).until(
-                    lambda d: len(new_select.find_elements(By.TAG_NAME, "option")) > 1
-                )
+                    # 当月セルのみをクリック
+                    day_xpath = ("//table[contains(@class,'ui-datepicker-calendar')]"
+                                 "//td[not(contains(@class,'ui-datepicker-other-month'))]"
+                                 f"/a[text()='{future_date.day}']")
+                    
+                    old_select = driver.find_element(By.ID, "customSelectedTimeSlot")
+                    WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, day_xpath))).click()
+                    
+                    try:
+                        WebDriverWait(driver, 20).until(EC.staleness_of(old_select))
+                    except TimeoutException:
+                        pass
+                    
+                    new_select = WebDriverWait(driver, 20).until(
+                        EC.presence_of_element_located((By.ID, "customSelectedTimeSlot"))
+                    )
+                    WebDriverWait(driver, 20).until(
+                        lambda d: len(new_select.find_elements(By.TAG_NAME, "option")) > 1
+                    )
 
-                # 利用可能な枠を正規化して取得
-                time_options = new_select.find_elements(By.TAG_NAME, "option")
-                available = [normalize_timeslot(o.text) for o in time_options if o.get_attribute('value')]
+                    # 利用可能な枠を正規化して取得
+                    time_options = new_select.find_elements(By.TAG_NAME, "option")
+                    available = [normalize_timeslot(o.text) for o in time_options if o.get_attribute('value')]
 
-                # 判定
-                dow_en = future_date.strftime("%A")
-                req_times = schedule.get(dow_en, [])
-                JP = {"Monday":"月曜日","Thursday":"木曜日","Saturday":"土曜日","Sunday":"日曜日"}
-                dow_jp = JP.get(dow_en, "")
+                    # 判定
+                    dow_en = future_date.strftime("%A")
+                    req_times = schedule.get(dow_en, [])
+                    JP = {"Monday":"月曜日","Thursday":"木曜日","Saturday":"土曜日","Sunday":"日曜日"}
+                    dow_jp = JP.get(dow_en, "")
 
-                found = False
-                for t in req_times:
-                    if normalize_timeslot(t) in available:
-                        found = True
-                        msg = f"体育館に空きがあります！\n日付: {future_date.strftime('%Y年%m月%d日')}（{dow_jp}）\n時間: {t}"
-                        print(msg)
-                        send_discord_message(msg)
+                    found = False
+                    for t in req_times:
+                        if normalize_timeslot(t) in available:
+                            found = True
+                            msg = f"体育館に空きがあります！\n日付: {future_date.strftime('%Y年%m月%d日')}（{dow_jp}）\n時間: {t}"
+                            print(msg)
+                            send_discord_message(msg)
 
-                if not found:
-                    print(f"{future_date.strftime('%Y年%m月%d日')}（{dow_jp}）の枠は空いていません。")
+                    if not found:
+                        print(f"{future_date.strftime('%Y年%m月%d日')}（{dow_jp}）の枠は空いていません。")
 
-            except TimeoutException:
-                print(f"時間スロットがロードされませんでした。{future_date.strftime('%Y年%m月%d日')}（{dow_jp}）の枠は空いていません。")
-            except StaleElementReferenceException:
-                print(f"スタックトレース: StaleElementReferenceException occurred on {future_date.strftime('%Y年%m月%d日')}（{dow_jp}）")
-                continue # StaleElementReferenceExceptionが発生した場合、次の日に進む
+                    break  # 成功したらリトライを終了
+
+                except (StaleElementReferenceException, TimeoutException) as e:
+                    if attempt < 2:
+                        print(f"[WARN] 一時エラー({type(e).__name__})。{future_date.strftime('%Y年%m月%d日')}（{dow_jp}）を再試行 {attempt+1}/3")
+                        time.sleep(1)
+                        continue
+                    else:
+                        print(f"[ERROR] {type(e).__name__} が連続発生。{future_date.strftime('%Y年%m月%d日')}（{dow_jp}）をスキップ")
+                        raise  # 3回失敗したら例外を再発生させる
 
             time.sleep(2)
 
     except Exception as e:
         print(f"エラーが発生しました: {e}")
         send_discord_message(f"🚨 スクリプト実行中にエラーが発生しました: {e}")
+        print(traceback.format_exc())
     finally:
         if driver:
             driver.quit()
